@@ -2,8 +2,6 @@
 {Component, PropTypes, createElement} = require 'react'
 
 # singleton during render
-provider = null
-
 # test if object is an object (not array)
 isobject = (o) -> !!o and typeof o == 'object' and !Array.isArray(o)
 
@@ -106,11 +104,12 @@ class Provider extends Component
         if props.children?
             throw new Error 'Provider: can\'t set app component both as property and child' if @app
             @app = props.children
-            if typeof(props.children) isnt 'function'
-                @app = ->
-                    props.children
+            if false and typeof(props.children) isnt 'function'
+                @app = -> props.children
 
         @state = props.store.state
+
+    getChildContext: => { store: this.props.store }
 
     componentDidMount: =>
         # start listening to changes in the store
@@ -121,18 +120,10 @@ class Provider extends Component
         @unsubscribe?()
         @unsubscribe = null
 
-    render: ->
-        provider = this # set singleton for connect function
-        try
-            @app() # render with current state
-        catch err
-            throw err
-        finally
-            # render pass of JSX is synchronous, child components are
-            # rendered *after* the render function. we cleanup in
-            # a timeout, because callback of @setState doesn't
-            # happen on first render.
-            (setImmediate ? setTimeout) (-> provider = null), 0
+    render: =>
+        if typeof(@app) is 'function'
+            return @app()
+        return @app
 
 
 storeShape = PropTypes.shape(
@@ -147,8 +138,12 @@ Provider.propTypes = {
     store: storeShape.isRequired
 }
 
+Provider.childContextTypes = {
+    store: storeShape.isRequired
+}
+
 # internal wrapping component to keep track of the
-# provider when doing rerender out of scope
+# state when doing rerender out of scope
 class Connected extends Component
 
     constructor: (props) ->
@@ -156,23 +151,18 @@ class Connected extends Component
         {@viewfn} = props
 
     render: =>
-        # store away the global provider locally in case we
-        # get a local re-render
-        @provider = provider if provider
-
-        # and use the local ref always
-        local = @provider
-
-        unless local
-            throw new Error("No provider in scope. First render must be from Provider")
-
-        state = local.store.state
-        dispatch = local.store.dispatch
-
+        unless @context.store
+            throw new Error('No provider in scope. First render must be from Provider')
+            
+        state = @context.store.state
+        dispatch = @context.store.dispatch
         # invoke the actual view function
         @viewfn(state, dispatch, @props.outerprops)
 
 
+Connected.contextTypes = {
+    store: storeShape.isRequired
+}
 
 # connected stateless functions receive a dispatch function to execute actions
 connect = (viewfn) ->
