@@ -104,8 +104,6 @@ class Provider extends Component
         if props.children?
             throw new Error 'Provider: can\'t set app component both as property and child' if @app
             @app = props.children
-            if false and typeof(props.children) isnt 'function'
-                @app = -> props.children
 
         @state = props.store.state
 
